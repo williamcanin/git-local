@@ -1,0 +1,206 @@
+#!/bin/sh
+# git.local - cria/deleta repositórios e organizações no Forgejo local.
+#
+# Uso:
+#   git.local create repo <USER_or_ORG>/<REPO> [-p|--private] [-d <descrição>]
+#   git.local delete repo <USER_or_ORG>/<REPO> [-y]
+#   git.local create org  <NAME> [-p|--private]
+#   git.local delete org  <NAME> [-y]
+#
+# Variáveis de ambiente:
+#   GITLOCAL_TOKEN  (obrigatória) token de acesso do Forgejo
+#   GITLOCAL_CACERT (opcional)    arquivo com a CA do certificado (ex.: rootCA.pem do mkcert)
+#   GIT_LOCAL_URL   (opcional)    padrão: https://git.local
+
+set -eu
+
+BASE_URL="${GIT_LOCAL_URL:-https://git.local}"
+API="${BASE_URL%/}/api/v1"
+PROG="git.local"
+
+TMP="$(mktemp)"
+trap 'rm -f "$TMP"' EXIT INT TERM
+
+usage() {
+    cat <<EOF
+Uso:
+  $PROG create repo <USER_or_ORG>/<REPO> [-p|--private] [-d <descrição>]
+  $PROG delete repo <USER_or_ORG>/<REPO> [-y]
+  $PROG create org  <NAME> [-p|--private]
+  $PROG delete org  <NAME> [-y]
+
+Variáveis:
+  GITLOCAL_TOKEN   token de acesso (obrigatória)
+  GITLOCAL_CACERT  CA do certificado, se não estiver no sistema (opcional)
+  GIT_LOCAL_URL    URL base (padrão: https://git.local)
+
+Opções:
+  -p, --private   cria como privado
+  -d <texto>      descrição do repositório
+  -y, --yes       não pedir confirmação ao deletar
+EOF
+}
+
+die() {
+    printf '%s: %s\n' "$PROG" "$*" >&2
+    exit 1
+}
+
+# Escapa aspas e barras invertidas para uso em JSON.
+json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+# api METHOD PATH [JSON]  -> grava corpo em $TMP e imprime o status HTTP
+api() {
+    _method="$1"
+    _path="$2"
+    _body="${3-}"
+
+    if [ -n "$_body" ]; then
+        curl ${GITLOCAL_CACERT:+--cacert "$GITLOCAL_CACERT"} -sS -o "$TMP" -w '%{http_code}' -X "$_method" \
+            -H "Authorization: token $GITLOCAL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$_body" "$API$_path"
+    else
+        curl ${GITLOCAL_CACERT:+--cacert "$GITLOCAL_CACERT"} -sS -o "$TMP" -w '%{http_code}' -X "$_method" \
+            -H "Authorization: token $GITLOCAL_TOKEN" \
+            "$API$_path"
+    fi
+}
+
+# Extrai o campo "message" de uma resposta de erro.
+api_message() {
+    sed -n 's/.*"message":"\([^"]*\)".*/\1/p' "$TMP" | head -n 1
+}
+
+# fail STATUS  -> mostra erro da API e sai
+fail() {
+    _msg="$(api_message)"
+    die "falhou (HTTP $1)${_msg:+: $_msg}"
+}
+
+# Valida nomes: letras, números, '-', '_' e '.'
+valid_name() {
+    case "$1" in
+        ''|*[!A-Za-z0-9._-]*) return 1 ;;
+    esac
+    return 0
+}
+
+confirm() {
+    [ "$ASSUME_YES" = "1" ] && return 0
+    printf '%s [s/N] ' "$1" >&2
+    read -r _ans || _ans=""
+    case "$_ans" in
+        s|S|y|Y|sim|SIM) return 0 ;;
+    esac
+    die "cancelado."
+}
+
+current_user() {
+    _st="$(api GET /user)"
+    [ "$_st" = "200" ] || fail "$_st"
+    grep -o '"login":"[^"]*"' "$TMP" | head -n 1 | cut -d'"' -f4
+}
+
+# ---------- ações ----------
+
+create_repo() {
+    owner="${TARGET%%/*}"
+    name="${TARGET#*/}"
+    valid_name "$owner" || die "dono inválido: '$owner'"
+    valid_name "$name"  || die "nome de repo inválido: '$name'"
+
+    json="{\"name\":\"$(json_escape "$name")\",\"private\":$PRIVATE,\"description\":\"$(json_escape "$DESC")\"}"
+
+    me="$(current_user)"
+    if [ "$owner" = "$me" ]; then
+        path="/user/repos"
+    else
+        path="/orgs/$owner/repos"
+    fi
+
+    st="$(api POST "$path" "$json")"
+    [ "$st" = "201" ] || fail "$st"
+    echo "repo criado: $BASE_URL/$owner/$name"
+}
+
+delete_repo() {
+    owner="${TARGET%%/*}"
+    name="${TARGET#*/}"
+    valid_name "$owner" || die "dono inválido: '$owner'"
+    valid_name "$name"  || die "nome de repo inválido: '$name'"
+
+    confirm "Deletar PERMANENTEMENTE o repo $owner/$name?"
+    st="$(api DELETE "/repos/$owner/$name")"
+    [ "$st" = "204" ] || fail "$st"
+    echo "repo deletado: $owner/$name"
+}
+
+create_org() {
+    valid_name "$TARGET" || die "nome de org inválido: '$TARGET'"
+    if [ "$PRIVATE" = "true" ]; then vis="private"; else vis="public"; fi
+
+    json="{\"username\":\"$(json_escape "$TARGET")\",\"visibility\":\"$vis\"}"
+    st="$(api POST /orgs "$json")"
+    [ "$st" = "201" ] || fail "$st"
+    echo "org criada: $BASE_URL/$TARGET"
+}
+
+delete_org() {
+    valid_name "$TARGET" || die "nome de org inválido: '$TARGET'"
+
+    confirm "Deletar PERMANENTEMENTE a org $TARGET?"
+    st="$(api DELETE "/orgs/$TARGET")"
+    [ "$st" = "204" ] || fail "$st"
+    echo "org deletada: $TARGET"
+}
+
+# ---------- parsing ----------
+
+[ "$#" -ge 3 ] || { usage >&2; exit 2; }
+[ -n "${GITLOCAL_TOKEN:-}" ] || die "defina a variável GITLOCAL_TOKEN."
+command -v curl >/dev/null 2>&1 || die "curl não encontrado."
+
+ACTION="$1"; KIND="$2"; TARGET="$3"
+shift 3
+
+PRIVATE="false"
+DESC=""
+ASSUME_YES="0"
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -p|--private) PRIVATE="true" ;;
+        -y|--yes)     ASSUME_YES="1" ;;
+        -d|--description)
+            [ "$#" -ge 2 ] || die "'$1' requer um valor."
+            DESC="$2"; shift ;;
+        -h|--help)    usage; exit 0 ;;
+        *) die "opção desconhecida: $1" ;;
+    esac
+    shift
+done
+
+case "$KIND" in
+    repo)
+        case "$TARGET" in
+            */*/*|/*|*/) die "use o formato <USER_or_ORG>/<REPO>." ;;
+            */*) ;;
+            *) die "use o formato <USER_or_ORG>/<REPO>." ;;
+        esac ;;
+    org)
+        case "$TARGET" in
+            */*) die "org não aceita '/': use apenas o nome." ;;
+        esac ;;
+    *) usage >&2; exit 2 ;;
+esac
+
+case "$ACTION/$KIND" in
+    create/repo) create_repo ;;
+    delete/repo) delete_repo ;;
+    create/org)  create_org ;;
+    delete/org)  delete_org ;;
+    *) usage >&2; exit 2 ;;
+esac
