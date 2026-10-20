@@ -1,0 +1,17 @@
+[Unit]
+Description=Git Local (Forgejo)
+# User units cannot depend on the system mount unit for /seagate,
+# so wait for the mount point before starting (see ExecStartPre).
+After=network.target
+
+
+[Service]
+# Wait up to 60 seconds for the external drive to be mounted at /seagate.
+ExecStartPre=/usr/bin/timeout 60 /bin/sh -c 'until mountpoint -q /seagate; do sleep 1; done'
+ExecStart=/usr/bin/forgejo web --config /seagate/git.local/config/config.ini
+Restart=always
+WorkingDirectory=/seagate/git.local
+Environment=HOME=/home/boss USER=boss
+
+[Install]
+WantedBy=default.target

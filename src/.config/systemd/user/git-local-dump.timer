@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily dump of Git Local (Gitea or Forgejo)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# Run a missed dump at the next boot if the computer was off at 03:30.
+Persistent=true
+Unit=git-local-dump.service
+
+[Install]
+WantedBy=timers.target
