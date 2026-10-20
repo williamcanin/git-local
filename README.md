@@ -25,8 +25,10 @@ SSH server of the Git server, on port 2222.
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Configuration](#configuration)
+- [HTTPS](#https)
 - [Network access (other computers and phones)](#network-access-other-computers-and-phones)
 - [SSH access](#ssh-access)
+- [Client script (git.local)](#client-script-gitlocal)
 - [Services](#services)
 - [Backups](#backups)
 - [Filesystem for the external drive](#filesystem-for-the-external-drive)
@@ -201,6 +203,23 @@ editing it by hand is the way to change settings later.
 `127.0.0.1:3000`. `src/etc/nginx/conf.d/fileserver.conf` serves
 `/home/boss/Público` on port 80 for any other host name (`default_server`).
 
+## HTTPS
+
+The server answers over HTTPS with a certificate created by
+[mkcert](docs/mkcert.md) (a local certificate authority). Use these addresses:
+
+- `https://git.local/` on computers that resolve the name (see
+  [Network access](#network-access-other-computers-and-phones));
+- `https://192.168.0.2:8080/` on phones and computers by IP.
+
+`http://git.local/` redirects to HTTPS. The certificate covers `git.local`,
+`localhost` and the LAN address. The private key is in `src/cert/` but is ignored by
+git; `make install` copies `src/cert/*.pem` to `<root>/git.local/cert/`.
+
+Every device that opens the server must trust the CA (`rootCA.pem`). The step-by-step
+guide, for mkcert, the certificate, and each device (Linux, Windows, iPhone, Android),
+is in **[docs/mkcert.md](docs/mkcert.md)**.
+
 ## Network access (other computers and phones)
 
 The web interface listens only on `127.0.0.1:3000`, on purpose. nginx listens on
@@ -257,7 +276,7 @@ Traffic on this port is plain HTTP, so use it only on a network you trust.
 ### Firewall
 
 The installer does **not** change firewall rules. It prints a warning when ports
-**8080** (phones) and **2222** (Git over SSH) must be opened for your local
+**80** and **443** (git.local), **8080** (phones, HTTPS) and **2222** (Git over SSH) must be opened for your local
 network. Open them with the firewall you use. The examples below use the local
 subnet `192.168.0.0/24`; change it to yours.
 
@@ -272,8 +291,7 @@ the line `-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT` and
 **before** the drop rules:
 
 ```
--A INPUT -s 192.168.0.0/24 -p tcp --dport 8080 -m conntrack --ctstate NEW -j ACCEPT
--A INPUT -s 192.168.0.0/24 -p tcp --dport 2222 -m conntrack --ctstate NEW -j ACCEPT
+-A INPUT -s 192.168.0.0/24 -p tcp -m multiport --dports 80,443,8080,2222 -m conntrack --ctstate NEW -j ACCEPT
 ```
 
 Check the file, then reload iptables:
@@ -286,8 +304,7 @@ sudo systemctl restart iptables
 To test without saving (lost on reboot), insert the rules at the top of the chain:
 
 ```sh
-sudo iptables -I INPUT -s 192.168.0.0/24 -p tcp --dport 8080 -j ACCEPT
-sudo iptables -I INPUT -s 192.168.0.0/24 -p tcp --dport 2222 -j ACCEPT
+sudo iptables -I INPUT -s 192.168.0.0/24 -p tcp -m multiport --dports 80,443,8080,2222 -j ACCEPT
 ```
 
 Check the order with `sudo iptables -S INPUT`: the two ACCEPT rules must come
@@ -299,7 +316,7 @@ In `/etc/nftables.conf`, inside `chain input`, add this line **before** the fina
 `counter` and `reject` rules (for example, right after `tcp dport ssh accept`):
 
 ```
-tcp dport { 8080, 2222 } ip saddr 192.168.0.0/24 ct state new accept
+tcp dport { 80, 443, 8080, 2222 } ip saddr 192.168.0.0/24 ct state new accept
 ```
 
 Check the file and reload:
@@ -314,7 +331,7 @@ sudo systemctl restart nftables
 If you use ufw instead:
 
 ```sh
-sudo ufw allow from 192.168.0.0/24 to any port 8080,2222 proto tcp
+sudo ufw allow from 192.168.0.0/24 to any port 80,443,8080,2222 proto tcp
 ```
 
 ### Fixed IP
@@ -370,6 +387,34 @@ ssh -T local
 The first connection asks you to accept the server fingerprint. Before your key
 is added in the web interface, `ssh -T local` returns `Permission denied
 (publickey)`. That means the SSH server is running.
+
+## Client script (`git.local`)
+
+`make install` copies `src/.local/bin/git.local` to `~/.local/bin/git.local`, replacing
+any previous copy. It creates and deletes repositories and organizations through the
+Forgejo API:
+
+```sh
+git.local create repo <owner>/<repo> [-p] [-d "description"]
+git.local delete repo <owner>/<repo> [-y]
+git.local create org  <name> [-p]
+git.local delete org  <name> [-y]
+```
+
+Set the access token in the `GITLOCAL_TOKEN` variable (create it in Forgejo: user menu →
+Settings → Applications):
+
+```sh
+export GITLOCAL_TOKEN=<your-token>      # in ~/.bashrc or ~/.zshrc
+```
+
+If the CA is not installed in the system, point the script to it:
+
+```sh
+export GITLOCAL_CACERT="$(mkcert -CAROOT)/rootCA.pem"
+```
+
+Other variables: `GIT_LOCAL_URL` (default `https://git.local`).
 
 ## Services
 
@@ -548,7 +593,7 @@ python3 -m unittest discover -s .tools/py/tests -v
 - **`git.local` resolves to another address on the network**: another computer is
   announcing the same name. Check with `avahi-resolve -n git.local` and turn off the other announcement.
 - **Phone loads and then times out, but `http://<IP>/` opens**: the firewall blocks
-  port 8080. Add the rule (see [Firewall](#firewall)).
+  port 8080 (HTTPS). Add the rule (see [Firewall](#firewall)).
 - **Other computers cannot clone over SSH (port 2222)**: the same firewall rule.
 - **Installer warns that the address comes from DHCP**: fix the address (see
   [Fixed IP](#fixed-ip)) and run `make install` again.
