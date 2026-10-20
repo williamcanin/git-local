@@ -5,6 +5,6 @@ After=network.target
 [Service]
 Type=oneshot
 TimeoutStartSec=infinity
-# Wait up to 60 seconds for the external drive to be mounted at /seagate.
-ExecStartPre=/usr/bin/timeout 60 /bin/sh -c 'until mountpoint -q /seagate; do sleep 1; done'
-ExecStart=%h/git.local/.tools/dump.sh
+# Wait up to 60 seconds for the external drive to be mounted at @ROOT@.
+ExecStartPre=/usr/bin/timeout 60 /bin/sh -c 'until mountpoint -q @ROOT@; do sleep 1; done'
+ExecStart=/usr/bin/python3 @ROOT@/git.local/bin/dump.py

@@ -1,0 +1,12 @@
+[Unit]
+Description=Announce git.local on the local network (mDNS)
+After=network.target
+
+[Service]
+# avahi-publish needs the avahi daemon (a system service). Wait up to 60 seconds for its socket.
+ExecStartPre=/usr/bin/timeout 60 /bin/sh -c 'until [ -S /run/avahi-daemon/socket ]; do sleep 1; done'
+ExecStart=/usr/bin/avahi-publish -a -R git.local @IP@
+Restart=always
+
+[Install]
+WantedBy=default.target
