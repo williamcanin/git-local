@@ -48,6 +48,10 @@ WORK_PATH = {base_dir}
 [actions]
 ENABLED = false
 
+[ui]
+DEFAULT_THEME = azul-auto
+THEMES = azul-auto,azul-light,azul-dark,forgejo-auto,forgejo-light,forgejo-dark
+
 [server]
 DOMAIN = git.local
 HTTP_ADDR = 127.0.0.1

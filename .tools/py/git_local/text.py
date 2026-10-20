@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import pathlib
 import re
 from typing import Iterable, Optional
 
@@ -64,3 +65,12 @@ def files_to_prune(entries: list[tuple[float, str]], keep: int) -> list[str]:
     """Names to delete, keeping the newest `keep` (entries are (mtime, name))."""
     ordered = sorted(entries, key=lambda item: item[0], reverse=True)
     return [name for _, name in ordered[keep:]]
+
+
+def mirror_paths(src_root: pathlib.Path, dest_root: pathlib.Path) -> list[tuple[pathlib.Path, pathlib.Path]]:
+    """(source, destination) for every file under src_root, mirrored under dest_root."""
+    return [
+        (path, dest_root / path.relative_to(src_root))
+        for path in sorted(src_root.rglob("*"))
+        if path.is_file()
+    ]

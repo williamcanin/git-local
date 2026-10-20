@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import pathlib
+import shutil
 import sys
 
 from .paths import BASE_PACKAGES, ETC_DIR, FLAVORS, FSTAB_FILE, FSTAB_HINT, GIT_HOST, HOSTS_FILE, LEGACY_UNIT, SRC_DIR, Layout
 from .state import State
-from .text import fstab_has_mount, hosts_address, latest_backup
+from .text import fstab_has_mount, hosts_address, latest_backup, mirror_paths
 from .util import (
     backup_file,
     current_user,
@@ -68,6 +69,18 @@ def create_directories(layout: Layout) -> None:
     log(f"Creating directories under {layout.base}")
     for sub in ["config", "data/lfs", "data/repositories", "log", "backup", "bin"]:
         (layout.base / sub).mkdir(parents=True, exist_ok=True)
+
+
+def install_custom_files(layout: Layout) -> None:
+    """Copy src/custom (theme, logo, favicon) to <root>/git.local/custom, backing up replaced files.
+
+    Forgejo reads files under custom/public/ in place of its built-in ones.
+    """
+    for src, dest in mirror_paths(SRC_DIR / "custom", layout.base / "custom"):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        backup_file(dest)
+        shutil.copy2(src, dest)
+        log(f"Installed {dest}")
 
 
 def etc_files() -> list[pathlib.Path]:

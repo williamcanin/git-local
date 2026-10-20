@@ -47,6 +47,11 @@ class ConfigTests(unittest.TestCase):
             self.assertIn(expected, lines)
         self.assertNotIn("/seagate", text)
 
+    def test_template_sets_blue_default_theme(self):
+        text = config.config_text("/mnt/d/git.local", "192.168.0.2", "L", "S", "I", "J")
+        self.assertIn("[ui]", text.splitlines())
+        self.assertIn("DEFAULT_THEME = azul-auto", text.splitlines())
+
     def test_has_line_is_exact(self):
         self.assertTrue(config.has_line("A\nINSTALL_LOCK = true\n", "INSTALL_LOCK = true"))
         self.assertFalse(config.has_line("INSTALL_LOCK = true2\n", "INSTALL_LOCK = true"))

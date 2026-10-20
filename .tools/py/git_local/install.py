@@ -18,6 +18,7 @@ from .system import (
     check_root,
     create_directories,
     disable_legacy_unit,
+    install_custom_files,
     enable_avahi,
     enable_linger,
     install_etc_files,
@@ -119,6 +120,7 @@ def cmd_install() -> None:
     layout = state.layout
 
     create_directories(layout)
+    install_custom_files(layout)
     prepare_config(layout, state.flavor, state.lan_ip)
     update_root_url(layout, state.lan_ip)
     write_flavor_file(layout, state)

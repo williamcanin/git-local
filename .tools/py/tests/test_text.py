@@ -1,5 +1,6 @@
 """Pure text helpers: fstab, hosts, backups, units, legacy keys, pruning."""
 
+import pathlib
 import unittest
 
 import _path  # noqa: F401
@@ -53,6 +54,27 @@ class TextTests(unittest.TestCase):
         entries = [(1.0, "a"), (5.0, "e"), (3.0, "c"), (4.0, "d"), (2.0, "b")]
         self.assertEqual(text.files_to_prune(entries, keep=3), ["b", "a"])
         self.assertEqual(text.files_to_prune(entries, keep=7), [])
+
+
+class MirrorPathTests(unittest.TestCase):
+    def test_files_are_mirrored_in_order(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = pathlib.Path(tmp) / "src"
+            dest = pathlib.Path(tmp) / "dest"
+            (src / "public" / "assets" / "img").mkdir(parents=True)
+            (src / "public" / "assets" / "img" / "logo.svg").write_text("<svg/>")
+            (src / "public" / "assets" / "css").mkdir(parents=True)
+            (src / "public" / "assets" / "css" / "theme-azul-auto.css").write_text("")
+            pairs = text.mirror_paths(src, dest)
+            self.assertEqual(
+                [d.relative_to(dest).as_posix() for _, d in pairs],
+                ["public/assets/css/theme-azul-auto.css", "public/assets/img/logo.svg"],
+            )
+
+    def test_missing_source_gives_no_files(self):
+        self.assertEqual(text.mirror_paths(pathlib.Path("/nonexistent-custom"), pathlib.Path("/x")), [])
 
 
 if __name__ == "__main__":
