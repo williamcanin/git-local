@@ -1,3 +1,4 @@
 /tmp/
 .claude/
 __pycache__/
+src/cert/*-key.pem
