@@ -30,6 +30,7 @@ SSH server of the Git server, on port 2222.
 - [Services](#services)
 - [Backups](#backups)
 - [Filesystem for the external drive](#filesystem-for-the-external-drive)
+- [Appearance](#appearance)
 - [Commands](#commands)
 - [Troubleshooting](#troubleshooting)
 - [Uninstall](#uninstall)
@@ -480,6 +481,39 @@ system.
 
 Reformatting erases the drive. Back up the data first. This project does not
 reformat or repartition the drive.
+
+## Appearance
+
+Forgejo reads files in `<root>/git.local/custom/public/` in place of its built-in
+ones. The project keeps them in `src/custom/` and `make install` copies them there
+(replaced files are backed up first). Reinstalling keeps your look.
+
+Current theme: **blue** accent, `azul-auto` (follows the system light or dark mode),
+with `azul-light` and `azul-dark` as options in the user menu.
+
+### Change the accent colour
+
+The accent is the `--color-primary*` variables. Edit the hex values in
+`src/custom/public/assets/css/theme-azul-light.css`, `theme-azul-dark.css` and
+`theme-azul-auto.css` (search for `--color-primary`), then run `make install`.
+Keep the three files consistent. The orange badges (`--color-orange*`) are separate
+and are kept as they are.
+
+### Change the logo and favicon
+
+Replace these files in `src/custom/public/assets/img/` and run `make install`:
+
+| File | Used for |
+|---|---|
+| `logo.svg` (or `logo.png`) | the logo in the top bar |
+| `favicon.svg` / `favicon.png` | the browser tab icon |
+| `apple-touch-icon.png` | the home-screen icon on iPhone and iPad |
+
+Prefer a clean SVG (no scripts inside). If the browser still shows the old image,
+press Ctrl+F5.
+
+Default theme and the list of themes are set in `[ui]` in `config.ini`
+(`DEFAULT_THEME`, `THEMES`).
 
 ## Commands
 
