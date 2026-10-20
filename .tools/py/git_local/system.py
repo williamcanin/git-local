@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import pathlib
 import shutil
 import sys
+import tempfile
 
 from .paths import BASE_PACKAGES, ETC_DIR, FLAVORS, FSTAB_FILE, FSTAB_HINT, GIT_HOST, HOSTS_FILE, LEGACY_UNIT, SRC_DIR, Layout
 from .state import State
-from .text import fstab_has_mount, hosts_address, latest_backup, mirror_paths
+from .text import fstab_has_mount, hosts_address, latest_backup, mirror_paths, render_unit
 from .util import (
     backup_file,
     current_user,
@@ -88,15 +90,50 @@ def etc_files() -> list[pathlib.Path]:
     return sorted(path for path in (SRC_DIR / "etc").rglob("*") if path.is_file())
 
 
-def install_etc_files() -> None:
+CERT_FILES = ("git.local.pem", "git.local-key.pem")
+
+
+def rendered_etc(src: pathlib.Path, root: str, lan_ip: str) -> str:
+    """Content of a src/etc file with @ROOT@ and @IP@ replaced."""
+    return render_unit(src.read_text(), root, lan_ip)
+
+
+def install_cert_files(layout: Layout) -> bool:
+    """Copy src/cert/*.pem to <root>/git.local/cert. The private key is never in git.
+
+    Returns False (and warns) when a file is missing; nginx then cannot start HTTPS.
+    """
+    source = SRC_DIR / "cert"
+    cert_dir = layout.base / "cert"
+    missing = [name for name in CERT_FILES if not (source / name).exists()]
+    if missing:
+        warn(f"Missing certificate file(s) in {source}: {', '.join(missing)}. HTTPS will not start until they are in {cert_dir}.")
+        return False
+
+    cert_dir.mkdir(parents=True, exist_ok=True)
+    for name in CERT_FILES:
+        dest = cert_dir / name
+        backup_file(dest)
+        shutil.copy2(source / name, dest)
+        dest.chmod(0o600 if name.endswith("-key.pem") else 0o644)
+        log(f"Installed {dest}")
+    return True
+
+
+def install_etc_files(layout: Layout, lan_ip: str) -> None:
+    """Copy src/etc/** to /etc/**, rendering placeholders and backing up what it replaces."""
     for src in etc_files():
         dest = ETC_DIR / src.relative_to(SRC_DIR / "etc")
+        handle, tmp_name = tempfile.mkstemp()
+        with os.fdopen(handle, "w") as tmp:
+            tmp.write(rendered_etc(src, str(layout.root), lan_ip))
         backup_file(dest, privileged=True)
-        run(["install", "-D", "-m", "644", str(src), str(dest)], root=True)
+        run(["install", "-D", "-m", "644", tmp_name, str(dest)], root=True)
+        os.unlink(tmp_name)
         log(f"Installed {dest}")
 
 
-def restore_etc_files() -> None:
+def restore_etc_files(root: str, lan_ip: str) -> None:
     """Undo install_etc_files: restore the newest backup, or remove a file the install created."""
     for src in etc_files():
         dest = ETC_DIR / src.relative_to(SRC_DIR / "etc")
@@ -104,7 +141,7 @@ def restore_etc_files() -> None:
         if backup:
             run(["cp", "-a", "--", backup, str(dest)], root=True)
             log(f"Restored {dest} from {backup}")
-        elif dest.exists() and dest.read_bytes() == src.read_bytes():
+        elif dest.exists() and dest.read_text() == rendered_etc(src, root, lan_ip):
             run(["rm", "-f", "--", str(dest)], root=True)
             log(f"Removed {dest}")
         elif dest.exists():

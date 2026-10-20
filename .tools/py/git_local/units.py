@@ -5,6 +5,8 @@ from __future__ import annotations
 import shutil
 
 from .paths import (
+    CLIENT_BIN_DIR,
+    CLIENT_SCRIPT_SOURCE,
     DUMP_SERVICE,
     DUMP_SOURCE,
     DUMP_TIMER,
@@ -59,3 +61,12 @@ def remove_dump_script(layout: Layout) -> None:
         (layout.base / "bin").rmdir()
     except OSError:
         pass
+
+
+def install_client_script() -> None:
+    """Install the git.local client script in ~/.local/bin, replacing any existing copy."""
+    dest = CLIENT_BIN_DIR / "git.local"
+    CLIENT_BIN_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(CLIENT_SCRIPT_SOURCE, dest)
+    dest.chmod(0o755)
+    log(f"Installed {dest}")

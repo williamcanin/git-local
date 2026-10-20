@@ -24,7 +24,7 @@ def cmd_uninstall() -> None:
     systemctl_user("disable", "--now", MDNS_UNIT, DUMP_TIMER, DUMP_SERVICE, USER_UNIT, check=False)
 
     remove_user_units()
-    restore_etc_files()
+    restore_etc_files(str(layout.root), "")
     remove_dump_script(layout)
 
     if ROOT_RECORD.exists():

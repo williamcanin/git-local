@@ -9,7 +9,7 @@ import time
 
 from .config import count_users, prepare_config, update_root_url
 from .network import address_from_network, check_mdns_conflict, warn_lan_ports
-from .paths import DUMP_TIMER, MDNS_UNIT, ROOT_RECORD, USER_UNIT, Layout
+from .paths import CLIENT_BIN_DIR, DUMP_TIMER, MDNS_UNIT, ROOT_RECORD, USER_UNIT, Layout
 from .sshclient import configure_ssh_client, remove_legacy_gitea_key
 from .state import State
 from .system import (
@@ -18,6 +18,7 @@ from .system import (
     check_root,
     create_directories,
     disable_legacy_unit,
+    install_cert_files,
     install_custom_files,
     enable_avahi,
     enable_linger,
@@ -25,7 +26,7 @@ from .system import (
     reload_nginx,
     require_arch,
 )
-from .units import install_dump_script, install_user_units
+from .units import install_client_script, install_dump_script, install_user_units
 from .util import die, log, run, systemctl_user, warn
 
 
@@ -107,6 +108,18 @@ def start_services(state: State) -> None:
     systemctl_user("enable", "--now", USER_UNIT)
 
 
+def print_client_hints() -> None:
+    """Tell the user how to give the client script its token."""
+    print("\nClient script: git.local (in ~/.local/bin)")
+    print("  Put your Forgejo access token in the GITLOCAL_TOKEN variable, for example in ~/.bashrc or ~/.zshrc:")
+    print("      export GITLOCAL_TOKEN=<your-token>")
+    print("  Create the token in Forgejo: user menu -> Settings -> Applications.")
+    if str(CLIENT_BIN_DIR) not in os.environ.get("PATH", "").split(":"):
+        print(f"  {CLIENT_BIN_DIR} is not in your PATH. Add this line to ~/.bashrc or ~/.zshrc:")
+        print(f'      export PATH="$HOME/.local/bin:$PATH"')
+    print("")
+
+
 def cmd_install() -> None:
     state = State()
     require_arch()
@@ -121,13 +134,15 @@ def cmd_install() -> None:
 
     create_directories(layout)
     install_custom_files(layout)
+    install_cert_files(layout)
     prepare_config(layout, state.flavor, state.lan_ip)
     update_root_url(layout, state.lan_ip)
     write_flavor_file(layout, state)
     write_root_record(layout)
-    install_etc_files()
+    install_etc_files(layout, state.lan_ip)
     install_user_units(state.flavor, layout, state.lan_ip)
     install_dump_script(layout)
+    install_client_script()
     disable_legacy_unit()
     enable_linger()
     enable_avahi()
@@ -140,4 +155,5 @@ def cmd_install() -> None:
     configure_ssh_client()
     create_admin(layout, state)
     start_services(state)
-    log("Done. Open http://git.local and sign in with the administrator account.")
+    log("Done. Open https://git.local/ and sign in with the administrator account.")
+    print_client_hints()

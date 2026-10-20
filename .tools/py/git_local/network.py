@@ -76,7 +76,7 @@ def address_from_network(state: State) -> None:
 
 def warn_lan_ports(state: State) -> None:
     subnet = ".".join(state.lan_ip.split(".")[:3]) + ".0/24"
-    warn(f"The firewall on this computer must allow TCP ports {LAN_PORT} (phones) and {SSH_PORT} (Git over SSH) from {subnet}.")
+    warn(f"The firewall on this computer must allow TCP ports 80 and 443 (git.local), {LAN_PORT} (phones, HTTPS) and {SSH_PORT} (Git over SSH) from {subnet}.")
     print('    The installer does not change firewall rules. Add them yourself; examples are in README.md ("Firewall").\n', file=sys.stderr)
 
 

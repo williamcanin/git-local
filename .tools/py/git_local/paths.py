@@ -12,6 +12,8 @@ DUMP_SOURCE = PROJECT_DIR / ".tools" / "py" / "dump.py"
 
 HOME = pathlib.Path.home()
 ROOT_RECORD = HOME / ".config" / "git-local" / "root"
+CLIENT_BIN_DIR = HOME / ".local" / "bin"
+CLIENT_SCRIPT_SOURCE = PROJECT_DIR / "src" / ".local" / "bin" / "git.local"
 USER_UNIT_DIR = HOME / ".config" / "systemd" / "user"
 SSH_CONFIG = HOME / ".ssh" / "config"
 AUTHORIZED_KEYS = HOME / ".ssh" / "authorized_keys"

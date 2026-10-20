@@ -11,10 +11,10 @@ class ConfigTests(unittest.TestCase):
         source = "[server]\nROOT_URL = http://git.local/\nHTTP_PORT = 3000\n"
         updated, changed = config.update_root_url_text(source, "192.168.0.2")
         self.assertTrue(changed)
-        self.assertIn("ROOT_URL = http://192.168.0.2:8080/", updated.splitlines())
+        self.assertIn("ROOT_URL = https://192.168.0.2:8080/", updated.splitlines())
 
     def test_root_url_unchanged(self):
-        _, changed = config.update_root_url_text("ROOT_URL = http://192.168.0.2:8080/\n", "192.168.0.2")
+        _, changed = config.update_root_url_text("ROOT_URL = https://192.168.0.2:8080/\n", "192.168.0.2")
         self.assertFalse(changed)
 
     def test_template_keeps_required_settings(self):
@@ -28,7 +28,7 @@ class ConfigTests(unittest.TestCase):
         )
         lines = set(text.splitlines())
         for expected in [
-            "ROOT_URL = http://192.168.0.2:8080/",
+            "ROOT_URL = https://192.168.0.2:8080/",
             "SSH_USER = git",
             "BUILTIN_SSH_SERVER_USER = git",
             "SSH_LISTEN_PORT = 2222",

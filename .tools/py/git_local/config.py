@@ -12,7 +12,7 @@ from .util import backup_file, die, log, run, stamp, systemctl_user, user_unit_a
 
 
 def root_url(lan_ip: str) -> str:
-    return f"http://{lan_ip}:{LAN_PORT}/"
+    return f"https://{lan_ip}:{LAN_PORT}/"
 
 
 def update_root_url_text(config_text: str, lan_ip: str) -> tuple[str, bool]:
