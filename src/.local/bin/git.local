@@ -6,11 +6,13 @@
 #   git.local delete repo <USER_or_ORG>/<REPO> [-y]
 #   git.local create org  <NAME> [-p|--private]
 #   git.local delete org  <NAME> [-y]
+#   git.local dump
 #
 # Variáveis de ambiente:
-#   GITLOCAL_TOKEN  (obrigatória) token de acesso do Forgejo
+#   GITLOCAL_TOKEN  (obrigatória para repo/org) token de acesso do Forgejo
 #   GITLOCAL_CACERT (opcional)    arquivo com a CA do certificado (ex.: rootCA.pem do mkcert)
 #   GIT_LOCAL_URL   (opcional)    padrão: https://git.local
+#   GIT_LOCAL_ROOT  (opcional)    raiz dos dados, para o dump (padrão: ~/.config/git-local/root)
 
 set -eu
 
@@ -28,11 +30,13 @@ Uso:
   $PROG delete repo <USER_or_ORG>/<REPO> [-y]
   $PROG create org  <NAME> [-p|--private]
   $PROG delete org  <NAME> [-y]
+  $PROG dump
 
 Variáveis:
-  GITLOCAL_TOKEN   token de acesso (obrigatória)
+  GITLOCAL_TOKEN   token de acesso (obrigatória para repo/org)
   GITLOCAL_CACERT  CA do certificado, se não estiver no sistema (opcional)
   GIT_LOCAL_URL    URL base (padrão: https://git.local)
+  GIT_LOCAL_ROOT   raiz dos dados, usada pelo dump (padrão: ~/.config/git-local/root)
 
 Opções:
   -p, --private   cria como privado
@@ -157,7 +161,40 @@ delete_org() {
     echo "org deletada: $TARGET"
 }
 
+# ---------- dump (não usa a API) ----------
+
+# Roda o dump do projeto: GIT_LOCAL_ROOT ou a raiz gravada pelo make install.
+run_dump() {
+    if [ "$#" -gt 0 ]; then
+        case "$1" in
+            -h|--help) usage; exit 0 ;;
+        esac
+        die "dump não aceita argumentos: $1"
+    fi
+
+    if [ -n "${GIT_LOCAL_ROOT:-}" ]; then
+        _root="$GIT_LOCAL_ROOT"
+    elif [ -f "$HOME/.config/git-local/root" ]; then
+        _root="$(head -n 1 "$HOME/.config/git-local/root")"
+    else
+        die "raiz não encontrada. Rode make install ou defina GIT_LOCAL_ROOT."
+    fi
+
+    _script="$_root/git.local/bin/dump.py"
+    [ -f "$_script" ] || die "$_script não existe. Rode make install."
+    command -v python3 >/dev/null 2>&1 || die "python3 não encontrado."
+
+    # Sem exec: o trap EXIT continua valendo e o status do python é propagado pelo set -e.
+    python3 "$_script"
+}
+
 # ---------- parsing ----------
+
+if [ "${1-}" = "dump" ]; then
+    shift
+    run_dump "$@"
+    exit 0
+fi
 
 [ "$#" -ge 3 ] || { usage >&2; exit 2; }
 [ -n "${GITLOCAL_TOKEN:-}" ] || die "defina a variável GITLOCAL_TOKEN."
