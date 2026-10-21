@@ -399,7 +399,12 @@ git.local create repo <owner>/<repo> [-p] [-d "description"]
 git.local delete repo <owner>/<repo> [-y]
 git.local create org  <name> [-p]
 git.local delete org  <name> [-y]
+git.local dump
 ```
+
+`git.local dump` makes a dump from any directory, the same as `make dump`. It does not use
+the API, so it does not need `GITLOCAL_TOKEN`. It reads the data root from `GIT_LOCAL_ROOT`
+or, if that is not set, from `~/.config/git-local/root` (written by `make install`).
 
 Set the access token in the `GITLOCAL_TOKEN` variable (create it in Forgejo: user menu →
 Settings → Applications):
@@ -414,7 +419,8 @@ If the CA is not installed in the system, point the script to it:
 export GITLOCAL_CACERT="$(mkcert -CAROOT)/rootCA.pem"
 ```
 
-Other variables: `GIT_LOCAL_URL` (default `https://git.local`).
+Other variables: `GIT_LOCAL_URL` (default `https://git.local`) and `GIT_LOCAL_ROOT`
+(data root used by `git.local dump`).
 
 ## Services
 
@@ -460,10 +466,11 @@ What `<root>/git.local/bin/dump.py` does:
 5. Starts `git-local.service` again if it was running before, even if the dump
    failed.
 
-Run a dump now:
+Run a dump now, from the project directory or from any other directory:
 
 ```sh
 make dump
+git.local dump
 ```
 
 Check the timer and the last run:
@@ -572,6 +579,9 @@ Default theme and the list of themes are set in `[ui]` in `config.ini`
 
 The same commands are available as `make <command>`, or without make as
 `PYTHONPATH=.tools/py python3 -m git_local <command>`.
+
+The client script has its own dump command, `git.local dump`, which runs the installed
+`dump.py` and works from any directory (see [Client script](#client-script-gitlocal)).
 
 The installer and the dump script are written in Python using only the standard library
 (Python 3.8 or newer). Run the unit tests from the project root:
